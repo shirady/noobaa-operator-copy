@@ -1,0 +1,143 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: noobaa
+  name: noobaa-endpoint
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      noobaa-s3: noobaa
+  strategy:
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 25%
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        noobaa-s3: noobaa
+        app: noobaa
+      annotations:
+        noobaa.io/configmap-hash: ""
+    spec:
+      serviceAccountName: noobaa-endpoint
+      volumes:
+        - name: mgmt-secret
+          secret:
+            secretName: noobaa-mgmt-serving-cert
+            optional: true
+        - name: s3-secret
+          secret:
+            secretName: noobaa-s3-serving-cert
+            optional: true
+        - name: oidc-token
+          projected:
+            sources:
+            - serviceAccountToken:
+                path: oidc-token
+                expirationSeconds: 3600
+                audience: api
+        - name: noobaa-auth-token
+          secret:
+            secretName: noobaa-endpoints
+            optional: true
+        - name: noobaa-server
+          secret:
+            secretName: noobaa-server
+            optional: true   
+      containers:
+        - name: endpoint
+          image: NOOBAA_CORE_IMAGE
+          command:
+            - /noobaa_init_files/noobaa_init.sh
+            - init_endpoint
+          resources:
+            requests:
+              cpu: "999m"
+              memory: "2Gi"
+            limits:
+              cpu: "999m"
+              memory: "2Gi"
+          securityContext:
+            fsGroupChangePolicy: "OnRootMismatch"
+            seLinuxOptions:
+              type: "spc_t"
+            capabilities:
+              add: ["SETUID", "SETGID"]
+          ports:
+            - containerPort: 6001
+            - containerPort: 6443
+            - containerPort: 7443
+          env:
+            - name: NOOBAA_DISABLE_COMPRESSION
+              valueFrom:
+                configMapKeyRef:
+                  name: noobaa-config
+                  key: NOOBAA_DISABLE_COMPRESSION
+            - name: NOOBAA_LOG_LEVEL
+              valueFrom:
+                configMapKeyRef:
+                  name: noobaa-config
+                  key: NOOBAA_LOG_LEVEL
+            - name: MGMT_ADDR
+            - name: BG_ADDR
+            - name: MD_ADDR
+            - name: HOSTED_AGENTS_ADDR
+            - name: DB_TYPE
+            - name: MONGODB_URL
+            - name: POSTGRES_HOST
+            - name: POSTGRES_DBNAME
+              value: nbcore
+            - name: POSTGRES_USER
+            - name: POSTGRES_PASSWORD
+            - name: VIRTUAL_HOSTS
+            - name: REGION
+            - name: ENDPOINT_GROUP_ID
+            - name: LOCAL_MD_SERVER
+            - name: LOCAL_N2N_AGENT
+            - name: NOOBAA_ROOT_SECRET
+            - name: NODE_EXTRA_CA_CERTS
+            - name: CONTAINER_CPU_REQUEST
+              valueFrom:
+                resourceFieldRef:
+                  resource: requests.cpu
+            - name: CONTAINER_MEM_REQUEST
+              valueFrom:
+                resourceFieldRef:
+                  resource: requests.memory
+            - name: CONTAINER_CPU_LIMIT
+              valueFrom:
+                resourceFieldRef:
+                  resource: limits.cpu
+            - name: CONTAINER_MEM_LIMIT
+              valueFrom:
+                resourceFieldRef:
+                  resource: limits.memory
+          volumeMounts:
+            # curently ssl_utils expects both secrets to be configured in order to use
+            # certificates. TODO: Allow each secret to be configured by intself.
+            - name: mgmt-secret
+              mountPath: /etc/mgmt-secret
+              readOnly: true
+            - name: s3-secret
+              mountPath: /etc/s3-secret
+              readOnly: true
+            - name: noobaa-auth-token
+              mountPath: /etc/noobaa-auth-token
+              readOnly: true
+            - name: noobaa-server
+              mountPath: /etc/noobaa-server
+              readOnly: true
+            # used for aws sts endpoint type
+            - name: oidc-token
+              mountPath: /var/run/secrets/openshift/serviceaccount
+              readOnly: true
+          readinessProbe: # must be configured to support rolling updates
+            tcpSocket:
+              port: 6001 # ready when s3 port is open
+            timeoutSeconds: 5
+      securityContext: 
+        runAsUser: 0
+        runAsGroup: 0

@@ -1,0 +1,45 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: noobaa-operator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      noobaa-operator: deployment
+  template:
+    metadata:
+      labels:
+        app: noobaa
+        noobaa-operator: deployment
+    spec:
+      serviceAccountName: noobaa
+      volumes:
+      - name: oidc-token
+        projected:
+          sources:
+          - serviceAccountToken:
+              path: oidc-token
+              expirationSeconds: 3600
+              audience: api
+      containers:
+        - name: noobaa-operator
+          image: NOOBAA_OPERATOR_IMAGE
+          volumeMounts:
+          - mountPath: /var/run/secrets/openshift/serviceaccount
+            name: oidc-token
+          resources:
+            limits:
+              cpu: "250m"
+              memory: "512Mi"
+          env:
+            - name: OPERATOR_NAME
+              value: noobaa-operator
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: WATCH_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace

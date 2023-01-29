@@ -1,0 +1,30 @@
+os: linux
+dist: xenial
+sudo: required
+services:
+  - docker
+language: go
+go:
+  - 1.16.x
+env:
+  global:
+    - GO111MODULE=on
+    - GOPROXY=https://proxy.golang.org
+    - CHANGE_MINIKUBE_NONE_USER=true
+    - MINIKUBE_WANTUPDATENOTIFICATION=false
+    - MINIKUBE_WANTREPORTERRORPROMPT=false
+    - MINIKUBE_HOME=$HOME
+    - CHANGE_MINIKUBE_NONE_USER=true
+    - KUBECONFIG=$HOME/.kube/config
+
+install:
+  - bash .travis/install-tools.sh
+  - bash .travis/install-python.sh
+  - bash .travis/install-minikube.sh
+
+script:
+  - make gen-api-fail-if-dirty --always-make || exit 1
+  - make build || exit 1
+  - make test || exit 1
+  - make test-olm || exit 1
+  - make test-cli-flow || exit 1

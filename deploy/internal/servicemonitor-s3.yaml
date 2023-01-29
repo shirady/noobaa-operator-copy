@@ -1,0 +1,14 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: noobaa-s3-service-monitor
+  labels:
+    app: noobaa
+spec:
+  endpoints:
+  - port: metrics
+    path: /
+  namespaceSelector: {}
+  selector:
+    matchLabels:
+      noobaa-s3-svc: "true"

@@ -1,0 +1,11 @@
+# we ignore everything by default
+*
+
+# we also explicitly ignore the following
+pkg
+test
+vendor
+
+# we un-ignore only the following
+!build
+!deploy

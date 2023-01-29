@@ -1,0 +1,225 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  labels:
+    prometheus: k8s
+    role: alert-rules
+  name: prometheus-noobaa-rules
+  namespace: default
+spec:
+  groups:
+  - name: noobaa-telemeter.rules
+    rules:
+    - expr: |
+        sum(NooBaa_num_unhealthy_buckets + NooBaa_num_unhealthy_bucket_claims)
+      record: job:noobaa_total_unhealthy_buckets:sum
+    - expr: |
+        NooBaa_num_unhealthy_namespace_buckets
+      record: job:noobaa_total_unhealthy_namespace_buckets
+    - expr: |
+        sum(NooBaa_num_buckets + NooBaa_num_buckets_claims)
+      record: job:noobaa_bucket_count:sum
+    - expr: |
+        NooBaa_num_namespace_buckets
+      record: job:noobaa_namespace_bucket_count
+    - expr: |
+        sum(NooBaa_num_objects + NooBaa_num_objects_buckets_claims)
+      record: job:noobaa_total_object_count:sum
+    - expr: |
+        NooBaa_accounts_num
+      record: noobaa_accounts_num
+    - expr: |
+        NooBaa_total_usage
+      record: noobaa_total_usage
+  - name: noobaa-odf.rules
+    rules:
+    - expr: |
+        NooBaa_odf_health_status
+      labels:
+        system_type: OCS
+        system_vendor: Red Hat
+      record: odf_system_health_status
+    - expr: |
+        NooBaa_total_usage
+      labels:
+        system_type: OCS
+        system_vendor: Red Hat
+      record: odf_system_raw_capacity_used_bytes
+    - expr: |
+        sum by (namespace, managedBy, job, service) (rate(NooBaa_providers_ops_read_num[5m]) + rate(NooBaa_providers_ops_write_num[5m]))
+      labels:
+        system_type: OCS
+        system_vendor: Red Hat
+      record: odf_system_iops_total_bytes
+    - expr: |
+        sum by (namespace, managedBy, job, service) (rate(NooBaa_providers_bandwidth_read_size[5m]) + rate(NooBaa_providers_bandwidth_write_size[5m]))
+      labels:
+        system_type: OCS
+        system_vendor: Red Hat
+      record: odf_system_throughput_total_bytes
+    - expr: |
+        sum(NooBaa_num_buckets + NooBaa_num_buckets_claims)
+      record: odf_system_bucket_count
+      labels:
+        system_type: OCS
+        system_vendor: Red Hat
+    - expr: |
+        sum(NooBaa_num_objects + NooBaa_num_objects_buckets_claims)
+      record: odf_system_objects_total
+      labels:
+        system_type: OCS
+        system_vendor: Red Hat
+  - name: noobaa-replication.rules
+    rules:
+    - expr: |
+        sum_over_time(sum by (replication_id) (NooBaa_replication_last_cycle_writes_size)[1y:6m])
+      record: noobaa_replication_total_writes_size
+    - expr: |
+        sum_over_time(sum by (replication_id) (NooBaa_replication_last_cycle_writes_num)[1y:6m])
+      record: noobaa_replication_total_writes_num
+    - expr: |
+        sum_over_time(sum by (replication_id) (NooBaa_replication_last_cycle_error_writes_size)[1y:6m])
+      record: noobaa_replication_total_error_writes_size
+    - expr: |
+        sum_over_time(sum by (replication_id) (NooBaa_replication_last_cycle_error_writes_num)[1y:6m])
+      record: noobaa_replication_total_error_writes_num
+    - expr: |
+        count_over_time(count by (replication_id) (NooBaa_replication_last_cycle_writes_size)[1y:6m])
+      record: noobaa_replication_total_cycles
+  - name: bucket-state-alert.rules
+    rules:
+    - alert: NooBaaBucketErrorState
+      annotations:
+        description: A NooBaa bucket {{ $labels.bucket_name }} is in error state for
+          more than 5m
+        message: A NooBaa Bucket Is In Error State
+        severity_level: warning
+        storage_type: NooBaa
+      expr: |
+        NooBaa_bucket_status{bucket_name=~".*"} == 0
+      for: 5m
+      labels:
+        severity: warning
+    - alert: NooBaaNamespaceBucketErrorState
+      annotations:
+        description: A NooBaa namespace bucket {{ $labels.bucket_name }} is in error
+          state for more than 5m
+        message: A NooBaa Namespace Bucket Is In Error State
+        severity_level: warning
+        storage_type: NooBaa
+      expr: |
+        NooBaa_namespace_bucket_status{bucket_name=~".*"} == 0
+      for: 5m
+      labels:
+        severity: warning
+    - alert: NooBaaBucketReachingQuotaState
+      annotations:
+        description: A NooBaa bucket {{ $labels.bucket_name }} is using {{ printf
+          "%0.0f" $value }}% of its quota
+        message: A NooBaa Bucket Is In Reaching Quota State
+        severity_level: warning
+        storage_type: NooBaa
+      expr: |
+        NooBaa_bucket_quota{bucket_name=~".*"} > 80
+      for: 5m
+      labels:
+        severity: warning
+    - alert: NooBaaBucketExceedingQuotaState
+      annotations:
+        description: A NooBaa bucket {{ $labels.bucket_name }} is exceeding its quota
+          - {{ printf "%0.0f" $value }}% used
+        message: A NooBaa Bucket Is In Exceeding Quota State
+        severity_level: warning
+        storage_type: NooBaa
+      expr: |
+        NooBaa_bucket_quota{bucket_name=~".*"} >= 100
+      for: 5m
+      labels:
+        severity: warning
+    - alert: NooBaaBucketLowCapacityState
+      annotations:
+        description: A NooBaa bucket {{ $labels.bucket_name }} is using {{ printf
+          "%0.0f" $value }}% of its capacity
+        message: A NooBaa Bucket Is In Low Capacity State
+        severity_level: warning
+        storage_type: NooBaa
+      expr: |
+        NooBaa_bucket_capacity{bucket_name=~".*"} > 80
+      for: 5m
+      labels:
+        severity: warning
+    - alert: NooBaaBucketNoCapacityState
+      annotations:
+        description: A NooBaa bucket {{ $labels.bucket_name }} is using all of its
+          capacity
+        message: A NooBaa Bucket Is In No Capacity State
+        severity_level: warning
+        storage_type: NooBaa
+      expr: |
+        NooBaa_bucket_capacity{bucket_name=~".*"} > 95
+      for: 5m
+      labels:
+        severity: warning
+  - name: resource-state-alert.rules
+    rules:
+    - alert: NooBaaResourceErrorState
+      annotations:
+        description: A NooBaa resource {{ $labels.resource_name }} is in error state
+          for more than 5m
+        message: A NooBaa Resource Is In Error State
+        severity_level: warning
+        storage_type: NooBaa
+      expr: |
+        NooBaa_resource_status{resource_name=~".*"} == 0
+      for: 5m
+      labels:
+        severity: warning
+    - alert: NooBaaNamespaceResourceErrorState
+      annotations:
+        description: A NooBaa namespace resource {{ $labels.namespace_resource_name
+          }} is in error state for more than 5m
+        message: A NooBaa Namespace Resource Is In Error State
+        severity_level: warning
+        storage_type: NooBaa
+      expr: |
+        NooBaa_namespace_resource_status{namespace_resource_name=~".*"} == 0
+      for: 5m
+      labels:
+        severity: warning
+  - name: system-capacity-alert.rules
+    rules:
+    - alert: NooBaaSystemCapacityWarning85
+      annotations:
+        description: A NooBaa system is approaching its capacity, usage is more than
+          85%
+        message: A NooBaa System Is Approaching Its Capacity
+        severity_level: warning
+        storage_type: NooBaa
+      expr: |
+        NooBaa_system_capacity > 85
+      for: 5m
+      labels:
+        severity: warning
+    - alert: NooBaaSystemCapacityWarning95
+      annotations:
+        description: A NooBaa system is approaching its capacity, usage is more than
+          95%
+        message: A NooBaa System Is Approaching Its Capacity
+        severity_level: critical
+        storage_type: NooBaa
+      expr: |
+        NooBaa_system_capacity > 95
+      for: 5m
+      labels:
+        severity: critical
+    - alert: NooBaaSystemCapacityWarning100
+      annotations:
+        description: A NooBaa system approached its capacity, usage is at 100%
+        message: A NooBaa System Approached Its Capacity
+        severity_level: critical
+        storage_type: NooBaa
+      expr: |
+        NooBaa_system_capacity == 100
+      for: 5m
+      labels:
+        severity: critical
