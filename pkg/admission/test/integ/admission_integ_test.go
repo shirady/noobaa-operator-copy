@@ -2,6 +2,7 @@ package admissionintegtests
 
 import (
 	"context"
+	"fmt"
 
 	nbv1 "github.com/noobaa/noobaa-operator/v5/pkg/apis/noobaa/v1alpha1"
 	"github.com/noobaa/noobaa-operator/v5/pkg/backingstore"
@@ -314,6 +315,7 @@ func KubeDelete(obj client.Object) (bool, error) {
 	err := client.Delete(context.TODO(), obj)
 	statusErr, ok := err.(*errors.StatusError)
 	if ok {
+		fmt.Printf("SDSD: ok %t statusErr %s", ok, statusErr)
 		return false, statusErr
 	}
 	return true, err
