@@ -267,6 +267,7 @@ var _ = Describe("Admission server integration tests", func() {
 		It("Should Allow", func() {
 			// delete "bs-name" backingstore
 			result, err = KubeDelete(testBackingstore)
+			fmt.Printf("SDSD: result %t err %s", result, err)
 			Expect(result).To(BeTrue())
 			Ω(err).ShouldNot(HaveOccurred())
 
@@ -314,8 +315,8 @@ func KubeDelete(obj client.Object) (bool, error) {
 	client := util.KubeClient()
 	err := client.Delete(context.TODO(), obj)
 	statusErr, ok := err.(*errors.StatusError)
+	fmt.Printf("SDSD: ok %t statusErr %s", ok, statusErr)
 	if ok {
-		fmt.Printf("SDSD: ok %t statusErr %s", ok, statusErr)
 		return false, statusErr
 	}
 	return true, err
